@@ -1,0 +1,79 @@
+import requests
+import smtplib
+from datetime import datetime
+import time
+
+MY_LAT = 1.352083
+MY_LONG = 103.819839
+MY_TIMEZONE = "Asia/Singapore"
+MY_EMAIL = "example123@gmail.com"
+MY_PASSWORD = "Placeholder Password"
+# MY_PASSWORD refers to the App Password of your gmail account. You can create one by going to:
+# Manage your Google account -> Security -> 2-Step Verification -> App Password
+
+
+# To check if our position is within +5 or -5 degrees of ISS's position:
+def close_to_iss():
+    # For retrieving ISS location data:
+    iss_response = requests.get(url="http://api.open-notify.org/iss-now.json")
+    iss_response.raise_for_status()
+
+    iss_data = iss_response.json()
+    iss_latitude = float(iss_data["iss_position"]["latitude"])
+    iss_longitude = float(iss_data["iss_position"]["longitude"])
+
+    if (-5 <= MY_LAT - iss_latitude <= 5) and (-5 <= MY_LONG - iss_longitude <= 5):
+        return True
+    else:
+        return False
+
+
+# For retrieving sunrise & sunset times of our location:
+parameters = {
+    "lat": MY_LAT,
+    "lng": MY_LONG,
+    "formatted": 0,
+    "tzid": MY_TIMEZONE
+}
+
+
+def is_nighttime():
+    sun_position_response = requests.get(url="https://api.sunrise-sunset.org/json", params=parameters)
+
+    sun_position_data = sun_position_response.json()
+    sunrise = sun_position_data["results"]["sunrise"]
+    sunrise_time = sunrise.split("T")[1]
+    sunrise_hour = int(sunrise_time.split(":")[0])
+
+    sunset = sun_position_data["results"]["sunset"]
+    sunset_time = sunset.split("T")[1]
+    sunset_hour = int(sunset_time.split(":")[0])
+
+    current_time = datetime.now()
+    current_hour = current_time.hour
+
+    if current_hour <= sunrise_hour or current_hour >= sunset_hour:
+        return True
+    else:
+        return False
+
+
+while True:
+    # If the ISS is close to my current position and it is currently dark:
+    if close_to_iss() is True and is_nighttime() is True:
+
+        # Then email me to tell me to look up (works for gmail accounts only):
+        # Replace green text in brackets with "smtp.live.com" if using Hotmail
+        # or "smtp.mail.yahoo.com" for Yahoo
+        with smtplib.SMTP("smtp.gmail.com") as connection:
+
+            connection.starttls()
+
+            connection.login(user=MY_EMAIL, password=MY_PASSWORD)
+            connection.sendmail(from_addr=MY_EMAIL,
+                                to_addrs=MY_EMAIL,
+                                msg="Subject: Look Up!\n\n"
+                                    "The ISS is right above you! Do you see it?")
+
+    # Run the code every 60 seconds.
+    time.sleep(60)
